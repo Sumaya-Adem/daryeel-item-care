@@ -42,7 +42,7 @@ function DaryeelPrototype() {
   const [screen, setScreen] = useState<Screen>("home");
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState("");
-  const choose = (next: Screen) => { setScreen(next); setMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const choose = (next: Screen) => { setScreen(next); setMenuOpen(false); window.scrollTo({ top: 0, behavior: "auto" }); };
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2200); };
 
   return (
