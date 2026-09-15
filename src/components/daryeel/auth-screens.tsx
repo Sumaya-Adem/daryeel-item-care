@@ -59,12 +59,12 @@ export function AuthScreen({ mode }: { mode: "signup" | "login" }) {
   const { go } = useDaryeel();
   const signup = mode === "signup";
   const [values, setValues] = useState({ name: "", phone: "", identifier: "", password: "", confirm: "" });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof values, string>>>({});
   const set = (key: keyof typeof values) => (value: string) => setValues((prev) => ({ ...prev, [key]: value }));
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const next: Record<string, string> = {};
+    const next: Partial<Record<keyof typeof values, string>> = {};
     if (signup) {
       if (values.name.trim().length < 2) next.name = "Enter your full name.";
       if (!phoneLike.test(values.phone.trim())) next.phone = "Enter a valid phone number.";
