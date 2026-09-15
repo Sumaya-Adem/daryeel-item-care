@@ -23,8 +23,8 @@ export type Screen =
 
 export interface NavState {
   screen: Screen;
-  itemId?: string;
-  section?: string;
+  itemId?: string | undefined;
+  section?: string | undefined;
 }
 
 interface StoreValue {
