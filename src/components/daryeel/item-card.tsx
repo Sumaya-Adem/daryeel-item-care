@@ -1,7 +1,8 @@
-import { Car, ChevronRight, FileText, Laptop, Package, QrCode, Smartphone } from "lucide-react";
+import { Car, ChevronRight, FileText, Laptop, Package, Smartphone } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { describeDaysLeft, getWarrantyInfo } from "@/lib/daryeel-dates";
 import type { Item } from "@/lib/daryeel-types";
+import { cn } from "@/lib/utils";
 import { Badge, StatusBadge } from "./ui-kit";
 
 export function itemIcon(item: Item): ReactNode {
@@ -13,55 +14,84 @@ export function itemIcon(item: Item): ReactNode {
 }
 
 export function warrantyLabel(item: Item) {
-  if (!item.warrantyExpiry) return "No warranty";
-  return `Warranty: ${item.warrantyExpiry}`;
+  const info = getWarrantyInfo(item.purchaseDate, item.warrantyExpiry);
+  if (info.state === "none") return "No warranty";
+  if (info.daysLeft === null) return `Warranty: ${item.warrantyExpiry}`;
+  if (info.state === "expired") return "Warranty expired";
+  return `Warranty: ${describeDaysLeft(info.daysLeft)}`;
 }
 
-export function ItemCard({ item, onOpen }: { item: Item; onOpen: (item: Item) => void }) {
-  return (
-    <div className="flex gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
-      {item.photo ? (
-        <img
-          src={item.photo}
-          alt={item.name}
-          loading="lazy"
-          className="h-20 w-20 shrink-0 rounded-xl object-cover object-left-top"
-        />
-      ) : (
-        <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-surface-subtle text-primary [&>svg]:h-7 [&>svg]:w-7">
-          {itemIcon(item)}
-        </div>
+function WarrantyBadge({ item }: { item: Item }) {
+  const info = getWarrantyInfo(item.purchaseDate, item.warrantyExpiry);
+  if (info.state === "none") return null;
+  const tone = info.state === "soon" ? "gold" : info.state === "expired" ? "muted" : "teal";
+  return <Badge tone={tone}>{warrantyLabel(item)}</Badge>;
+}
+
+export function ItemThumb({ item, className }: { item: Item; className?: string }) {
+  return item.photo ? (
+    <img
+      src={item.photo}
+      alt=""
+      loading="lazy"
+      className={cn("shrink-0 rounded-lg bg-muted object-cover object-left-top", className)}
+    />
+  ) : (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "grid shrink-0 place-items-center rounded-lg bg-surface-subtle text-muted-foreground [&>svg]:h-6 [&>svg]:w-6",
+        className,
       )}
-      <div className="min-w-0 flex-1 py-0.5">
-        <h4 className="truncate font-bold">{item.name}</h4>
-        <p className="mt-1 text-xs text-muted-foreground">{item.category}</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Badge>
-            <QrCode /> QR Active
-          </Badge>
-          {item.status === "lost" ? <StatusBadge status="lost" /> : null}
-          <Badge tone={item.warrantyExpiry ? "gold" : "muted"}>{warrantyLabel(item)}</Badge>
-        </div>
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={`View ${item.name}`}
-        className="self-center"
-        onClick={() => onOpen(item)}
-      >
-        <ChevronRight />
-      </Button>
+    >
+      {itemIcon(item)}
     </div>
   );
 }
 
-export function ItemList({ items, onOpen }: { items: Item[]; onOpen: (item: Item) => void }) {
+export function ItemCard({ item, onOpen }: { item: Item; onOpen: (item: Item) => void }) {
+  const lost = item.status === "lost";
+  const meta = [item.category, item.brand && item.brand !== "—" ? item.brand : ""]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <div className="space-y-3">
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      aria-label={`${item.name}, ${item.category}, ${lost ? "lost" : "active"}. View details`}
+      className={cn(
+        "group flex w-full cursor-pointer items-center gap-3.5 rounded-xl border bg-card p-3 text-left transition-colors hover:border-foreground/20 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        lost ? "border-destructive/30" : "border-border",
+      )}
+    >
+      <ItemThumb item={item} className="h-16 w-16" />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="truncate text-[15px] font-semibold">{item.name}</span>
+        </span>
+        <span className="mt-0.5 block truncate type-caption text-muted-foreground">{meta}</span>
+        <span className="mt-2 flex flex-wrap gap-1.5">
+          <StatusBadge status={item.status} />
+          <WarrantyBadge item={item} />
+        </span>
+      </span>
+      <ChevronRight
+        aria-hidden="true"
+        className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+      />
+    </button>
+  );
+}
+
+export function ItemList({ items, onOpen }: { items: Item[]; onOpen: (item: Item) => void }) {
+  // Two columns on tablet; the desktop preview is a phone-width frame, so it returns to one.
+  return (
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
       {items.map((item) => (
-        <ItemCard key={item.id} item={item} onOpen={onOpen} />
+        <li key={item.id}>
+          <ItemCard item={item} onOpen={onOpen} />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

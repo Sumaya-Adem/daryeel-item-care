@@ -1,16 +1,25 @@
-import { Download, Printer, QrCode, Share2 } from "lucide-react";
+import { Download, ExternalLink, Info, Printer, QrCode, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDaryeel } from "@/lib/daryeel-store";
 import type { Item, Visibility } from "@/lib/daryeel-types";
-import { CheckRow, EmptyState, QrPlaceholder, SectionTitle, TopBack } from "./ui-kit";
-import { downloadQr, printQr, shareQr } from "./qr-actions";
+import {
+  ActionMini,
+  Card,
+  CheckRow,
+  EmptyState,
+  Notice,
+  QrPlaceholder,
+  SectionTitle,
+  TopBack,
+} from "./ui-kit";
+import { QR_PENDING_MESSAGE, shareQr } from "./qr-actions";
 
 export const VISIBILITY_LABELS: [keyof Visibility, string][] = [
-  ["itemName", "Item Name"],
-  ["ownerName", "Owner Name"],
-  ["contactNumber", "Contact Number"],
-  ["serialNumber", "Serial Number"],
-  ["warrantyStatus", "Warranty Status"],
+  ["itemName", "Item name"],
+  ["ownerName", "Owner name"],
+  ["contactNumber", "Contact number"],
+  ["serialNumber", "Serial number"],
+  ["warrantyStatus", "Warranty status"],
 ];
 
 export function QrScreen({ item }: { item: Item }) {
@@ -18,43 +27,60 @@ export function QrScreen({ item }: { item: Item }) {
   const shared = VISIBILITY_LABELS.filter(([key]) => item.visibility[key]);
 
   return (
-    <div className="min-h-screen bg-card lg:min-h-[820px]">
-      <TopBack title="Your Item QR" onBack={() => go("details", { itemId: item.id })} />
-      <div className="px-5 pb-8 text-center">
-        <div className="mt-2 rounded-[24px] bg-surface-subtle p-7">
+    <div className="min-h-screen bg-background pb-10 lg:min-h-[820px]">
+      <TopBack
+        title="QR identity"
+        subtitle={item.name}
+        onBack={() => go("details", { itemId: item.id })}
+      />
+      <div className="space-y-section px-gutter pt-6">
+        <Card className="p-6 text-center">
           <QrPlaceholder />
-          <p className="mt-5 text-lg font-bold">Attach this QR code to your item.</p>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            Anyone who scans this code can see only the information you choose to make public.
+          <h3 className="mt-5 type-heading">Attach this QR code to your item</h3>
+          <p className="mx-auto mt-1 max-w-xs type-caption text-muted-foreground">
+            Anyone who scans it will see only the information you choose to make public.
           </p>
-          <p className="mt-3 text-xs font-bold text-primary">Item ID: {item.id}</p>
-        </div>
+          <p className="mt-3 inline-flex rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+            Item ID: {item.id}
+          </p>
 
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          <Button variant="outline" onClick={downloadQr} className="h-auto flex-col py-4 text-xs">
-            <Download />
-            Download QR
-          </Button>
-          <Button variant="outline" onClick={printQr} className="h-auto flex-col py-4 text-xs">
-            <Printer />
-            Print QR
-          </Button>
-          <Button variant="outline" onClick={() => void shareQr(item)} className="h-auto flex-col py-4 text-xs">
-            <Share2 />
-            Share QR
-          </Button>
-        </div>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <ActionMini icon={<Download />} label="Download" onClick={() => undefined} disabled />
+            <ActionMini icon={<Printer />} label="Print" onClick={() => undefined} disabled />
+            <ActionMini icon={<Share2 />} label="Share" onClick={() => void shareQr(item)} />
+          </div>
+          <div className="mt-4 text-left">
+            <Notice tone="neutral" icon={<Info />}>
+              {QR_PENDING_MESSAGE} You can share the item ID now.
+            </Notice>
+          </div>
+        </Card>
 
-        <div className="mt-7 text-left">
-          <SectionTitle>Public Information</SectionTitle>
+        <section>
+          <SectionTitle
+            description="Shown when someone scans this QR"
+            action={
+              <Button
+                variant="link"
+                className="h-auto p-0"
+                onClick={() => go("edit", { itemId: item.id })}
+              >
+                Change
+              </Button>
+            }
+          >
+            Public information
+          </SectionTitle>
           {shared.length > 0 ? (
-            <div className="rounded-2xl border border-border p-4">
-              {shared.map(([key, label]) => (
-                <CheckRow key={key} label={label} />
-              ))}
-            </div>
+            <Card className="px-4 py-2.5">
+              <ul>
+                {shared.map(([key, label]) => (
+                  <CheckRow key={key} label={label} />
+                ))}
+              </ul>
+            </Card>
           ) : (
-            <div className="rounded-2xl border border-border">
+            <Card>
               <EmptyState
                 tone="muted"
                 icon={<QrCode />}
@@ -66,12 +92,17 @@ export function QrScreen({ item }: { item: Item }) {
                   </Button>
                 }
               />
-            </div>
+            </Card>
           )}
-        </div>
+        </section>
 
-        <Button variant="secondary" className="mt-6 w-full" onClick={() => go("public", { itemId: item.id })}>
-          View Public Page
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          onClick={() => go("public", { itemId: item.id })}
+        >
+          <ExternalLink /> Preview public page
         </Button>
       </div>
     </div>

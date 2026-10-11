@@ -1,155 +1,224 @@
-import { Box, MapPin, PackageOpen, Plus, QrCode, ReceiptText } from "lucide-react";
+import {
+  AlertTriangle,
+  Box,
+  CheckCircle2,
+  MapPin,
+  PackageOpen,
+  Plus,
+  QrCode,
+  ReceiptText,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getWarrantyInfo, WARRANTY_SOON_DAYS } from "@/lib/daryeel-dates";
 import { useDaryeel } from "@/lib/daryeel-store";
-import { ItemCard } from "./item-card";
-import { EmptyState, SectionTitle } from "./ui-kit";
+import { cn } from "@/lib/utils";
+import { ItemList } from "./item-card";
+import { NotificationCard } from "./screen-notifications";
+import { Avatar, Card, EmptyState, Notice, SectionTitle } from "./ui-kit";
 
 export function HomeScreen() {
-  const { items, go, owner, notifications } = useDaryeel();
+  const { items, go, owner, notifications, markRead } = useDaryeel();
   const lost = items.filter((item) => item.status === "lost");
+  const active = items.filter((item) => item.status === "active");
+  const endingSoon = items.filter(
+    (item) => getWarrantyInfo(item.purchaseDate, item.warrantyExpiry).state === "soon",
+  );
   const withWarranty = items.filter((item) => item.warrantyExpiry);
   const firstItem = items[0];
+  const firstName = owner.name.split(" ")[0];
 
   const stats = [
-    { label: "My Items", value: String(items.length), icon: Box, onClick: () => go("items") },
-    { label: "QR Items", value: String(items.length), icon: QrCode, onClick: () => go("items") },
-    { label: "Warranty", value: `${withWarranty.length} active`, icon: ReceiptText, onClick: () => go("items") },
-    { label: "Lost", value: `${lost.length} item${lost.length === 1 ? "" : "s"}`, icon: MapPin, onClick: () => go("items") },
+    { label: "Total items", value: items.length, icon: Box, onClick: () => go("items") },
+    {
+      label: "Active",
+      value: active.length,
+      icon: CheckCircle2,
+      onClick: () => go("items", { section: "active" }),
+    },
+    {
+      label: "Lost",
+      value: lost.length,
+      icon: MapPin,
+      onClick: () => go("items", { section: "lost" }),
+      alert: lost.length > 0,
+    },
+    {
+      label: "Warranty ending soon",
+      value: endingSoon.length,
+      icon: ReceiptText,
+      onClick: () => go("items"),
+      hint: `Within ${WARRANTY_SOON_DAYS} days`,
+    },
   ];
 
   const actions = [
-    { label: "Add Item", icon: Plus, onClick: () => go("add") },
+    { label: "Add item", icon: Plus, onClick: () => go("add") },
     {
-      label: "QR Code",
+      label: "QR identity",
       icon: QrCode,
       onClick: () => (firstItem ? go("qr", { itemId: firstItem.id }) : go("add")),
     },
     {
-      label: "Lost Item",
+      label: "Lost items",
       icon: MapPin,
-      onClick: () => {
-        const target = lost[0] ?? firstItem;
-        if (target) go("details", { itemId: target.id });
-        else go("add");
-      },
+      onClick: () => go("items", { section: "lost" }),
     },
     {
       label: "Warranty",
       icon: ReceiptText,
       onClick: () => {
-        const target = withWarranty[0] ?? firstItem;
+        const target = endingSoon[0] ?? withWarranty[0] ?? firstItem;
         if (target) go("details", { itemId: target.id });
         else go("add");
       },
     },
   ];
 
+  const latest = notifications.slice(0, 2);
+
   return (
-    <div className="animate-fade-up px-5 pt-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-2xl font-extrabold">Good morning, {owner.name.split(" ")[0]}</p>
-          <p className="mt-1 text-sm text-muted-foreground">Keep your belongings organized and protected.</p>
+    <div className="animate-fade-up px-gutter pt-6">
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="type-caption text-muted-foreground">Welcome back</p>
+          <h2 className="truncate type-title">{firstName}</h2>
         </div>
-        <Button
-          variant="ghost"
+        <button
+          type="button"
           onClick={() => go("profile")}
           aria-label="Open profile"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary p-0 font-bold text-primary"
+          className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          AA
-        </Button>
-      </div>
+          <Avatar name={owner.name} />
+        </button>
+      </header>
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        {stats.map(({ label, value, icon: Icon, onClick }, index) => (
-          <Button
+      <Button className="mt-5 w-full sm:w-auto lg:w-full" size="lg" onClick={() => go("add")}>
+        <Plus /> Add new item
+      </Button>
+
+      <section
+        aria-label="Summary"
+        className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2"
+      >
+        {stats.map(({ label, value, icon: Icon, onClick, alert, hint }) => (
+          <button
             key={label}
-            variant="ghost"
+            type="button"
             onClick={onClick}
-            className="h-auto flex-col items-start rounded-2xl border border-border bg-card p-4 text-left shadow-soft"
+            className={cn(
+              "flex cursor-pointer flex-col items-start rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/20 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              alert ? "border-destructive/30" : "border-border",
+            )}
           >
-            <span
-              className={`mb-3 grid h-9 w-9 place-items-center rounded-xl ${index > 1 ? "bg-warning-soft text-warning" : "bg-secondary text-primary"}`}
-            >
-              <Icon className="h-4 w-4" />
-            </span>
-            <span className="text-xl font-extrabold">{value}</span>
-            <span className="mt-1 text-xs font-normal text-muted-foreground">{label}</span>
-          </Button>
+            <Icon
+              aria-hidden="true"
+              className={cn("h-4 w-4", alert ? "text-destructive" : "text-muted-foreground")}
+            />
+            <span className="mt-3 text-2xl font-semibold tabular-nums">{value}</span>
+            <span className="mt-0.5 type-caption text-muted-foreground">{label}</span>
+            {hint ? <span className="text-xs text-muted-foreground/90">{hint}</span> : null}
+          </button>
         ))}
-      </div>
+      </section>
 
-      <div className="mt-7">
+      {lost.length > 0 ? (
+        <div className="mt-4">
+          <Notice
+            tone="danger"
+            icon={<AlertTriangle />}
+            title={`${lost.length} item${lost.length === 1 ? " is" : "s are"} marked as lost`}
+            action={
+              <Button
+                size="sm"
+                variant="destructive-outline"
+                onClick={() => go("items", { section: "lost" })}
+              >
+                View lost items
+              </Button>
+            }
+          >
+            Their public pages show a lost notice to anyone who scans the QR.
+          </Notice>
+        </div>
+      ) : null}
+
+      <section className="mt-section">
         <SectionTitle
           action={
-            <Button variant="link" className="h-auto p-0" onClick={() => go("items")}>
-              View All
-            </Button>
+            items.length > 0 ? (
+              <Button variant="link" className="h-auto p-0" onClick={() => go("items")}>
+                View all
+              </Button>
+            ) : null
           }
         >
-          Recent Items
+          Recent items
         </SectionTitle>
         {items.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card">
+          <Card>
             <EmptyState
               icon={<PackageOpen />}
-              title="No Items Yet"
-              text="You haven't added any belongings yet."
+              title="No items yet"
+              text="Add your first belonging to create its digital identity."
               action={
                 <Button onClick={() => go("add")}>
-                  <Plus /> Add Your First Item
+                  <Plus /> Add your first item
                 </Button>
               }
             />
-          </div>
+          </Card>
         ) : (
-          <div className="space-y-3">
-            {items.slice(0, 2).map((item) => (
-              <ItemCard key={item.id} item={item} onOpen={(next) => go("details", { itemId: next.id })} />
-            ))}
-          </div>
+          <ItemList
+            items={items.slice(0, 3)}
+            onOpen={(next) => go("details", { itemId: next.id })}
+          />
         )}
-      </div>
+      </section>
 
-      <div className="mt-7">
-        <SectionTitle>Quick Actions</SectionTitle>
+      <section className="mt-section">
+        <SectionTitle>Quick actions</SectionTitle>
         <div className="grid grid-cols-4 gap-2">
           {actions.map(({ label, icon: Icon, onClick }) => (
-            <Button
+            <button
               key={label}
-              variant="ghost"
+              type="button"
               onClick={onClick}
-              className="h-auto flex-col gap-2 px-1 py-3 text-[11px] text-muted-foreground"
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-lg px-1 py-2 text-center text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-info-soft text-primary">
-                <Icon />
+              <span className="grid h-11 w-11 place-items-center rounded-lg border border-border bg-card text-primary">
+                <Icon className="h-5 w-5" aria-hidden="true" />
               </span>
               {label}
-            </Button>
+            </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="mt-7">
+      <section className="mt-section">
         <SectionTitle
           action={
             <Button variant="link" className="h-auto p-0" onClick={() => go("notifications")}>
-              Open
+              See all
             </Button>
           }
         >
-          Latest Update
+          Latest updates
         </SectionTitle>
-        <div className="rounded-2xl border border-border bg-card p-4 text-sm">
-          <p className="font-bold">{notifications[0]?.title ?? "You're all caught up."}</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{notifications[0]?.text ?? "No new notifications."}</p>
-        </div>
-      </div>
-
-      <Button className="mt-6 w-full" size="lg" onClick={() => go("add")}>
-        <Plus /> Add New Item
-      </Button>
+        {latest.length === 0 ? (
+          <Card className="p-4 type-caption text-muted-foreground">You're all caught up.</Card>
+        ) : (
+          <div className="space-y-2">
+            {latest.map((notification) => (
+              <NotificationCard
+                key={notification.id}
+                notification={notification}
+                onRead={() => markRead(notification.id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
