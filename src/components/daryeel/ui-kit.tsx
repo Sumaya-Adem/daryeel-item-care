@@ -1,18 +1,26 @@
-import { ArrowLeft, Check, ChevronRight } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, QrCode } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatItemDate, parseItemDate, toInputDate } from "@/lib/daryeel-dates";
 import { cn } from "@/lib/utils";
 
-export function Badge({ children, tone = "teal" }: { children: ReactNode; tone?: "teal" | "gold" | "red" | "muted" }) {
+type Tone = "teal" | "gold" | "red" | "green" | "muted";
+
+const BADGE_TONES: Record<Tone, string> = {
+  teal: "bg-secondary text-secondary-foreground",
+  gold: "bg-warning-soft text-warning-foreground",
+  red: "bg-destructive-soft text-destructive",
+  green: "bg-success-soft text-success",
+  muted: "bg-muted text-muted-foreground",
+};
+
+export function Badge({ children, tone = "teal" }: { children: ReactNode; tone?: Tone }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold [&>svg]:h-3 [&>svg]:w-3",
-        tone === "gold" && "bg-warning-soft text-warning",
-        tone === "red" && "bg-destructive/10 text-destructive",
-        tone === "muted" && "bg-muted text-muted-foreground",
-        tone === "teal" && "bg-secondary text-primary",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap [&>svg]:h-3.5 [&>svg]:w-3.5",
+        BADGE_TONES[tone],
       )}
     >
       {children}
@@ -23,15 +31,61 @@ export function Badge({ children, tone = "teal" }: { children: ReactNode; tone?:
 export function StatusBadge({ status }: { status: "active" | "lost" }) {
   return status === "lost" ? (
     <Badge tone="red">
-      <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-destructive" />
       Lost
     </Badge>
   ) : (
-    <Badge>
-      <span className="h-1.5 w-1.5 rounded-full bg-success" />
+    <Badge tone="green">
+      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-success" />
       Active
     </Badge>
   );
+}
+
+/** Label, hint and error wrapper shared by every form control. */
+function Field({
+  id,
+  label,
+  required,
+  hint,
+  error,
+  children,
+}: {
+  id: string;
+  label: string;
+  required?: boolean | undefined;
+  hint?: string | undefined;
+  error?: string | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block type-label text-foreground">
+        {label}
+        {required ? (
+          <span aria-hidden="true" className="ml-0.5 text-destructive">
+            *
+          </span>
+        ) : null}
+      </label>
+      {children}
+      {error ? (
+        <p id={`${id}-error`} className="mt-1.5 type-caption font-medium text-destructive">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${id}-hint`} className="mt-1.5 type-caption text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function describedBy(id: string, error?: string, hint?: string) {
+  if (error) return `${id}-error`;
+  if (hint) return `${id}-hint`;
+  return undefined;
 }
 
 export function FormField({
@@ -43,7 +97,9 @@ export function FormField({
   icon,
   required = false,
   error,
+  hint,
   autoComplete,
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -53,42 +109,52 @@ export function FormField({
   icon?: ReactNode;
   required?: boolean;
   error?: string | undefined;
+  hint?: string | undefined;
   autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   const id = useId();
-  const errorId = `${id}-error`;
+  const isPassword = type === "password";
+  const [revealed, setRevealed] = useState(false);
   return (
-    <div className="block">
-      <label htmlFor={id} className="mb-2 block text-sm font-semibold">
-        {label}
-        {required ? <span className="ml-1 text-destructive">*</span> : null}
-      </label>
+    <Field id={id} label={label} required={required} hint={hint} error={error}>
       <span className="relative block">
         {icon ? (
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">
             {icon}
           </span>
         ) : null}
         <Input
           id={id}
-          type={type}
+          type={isPassword && revealed ? "text" : type}
           value={value}
           autoComplete={autoComplete}
+          inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
+          aria-required={required || undefined}
           aria-invalid={Boolean(error)}
-          aria-describedby={error ? errorId : undefined}
-          className={cn("h-13 rounded-[13px] bg-card", icon && "pl-11", error && "border-destructive")}
+          aria-describedby={describedBy(id, error, hint)}
+          className={cn(icon && "pl-10", isPassword && "pr-12")}
         />
+        {isPassword ? (
+          <button
+            type="button"
+            onClick={() => setRevealed((value) => !value)}
+            aria-label={revealed ? "Hide password" : "Show password"}
+            aria-pressed={revealed}
+            className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        ) : null}
       </span>
-      {error ? (
-        <p id={errorId} className="mt-1.5 text-xs font-semibold text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </div>
+    </Field>
   );
 }
+
+const controlClass =
+  "w-full rounded-md border border-input bg-card px-3.5 text-base transition-colors hover:border-foreground/25 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/20 aria-invalid:border-destructive md:text-sm";
 
 export function SelectField({
   label,
@@ -97,6 +163,7 @@ export function SelectField({
   options,
   required = false,
   error,
+  placeholder = "Select category",
 }: {
   label: string;
   value: string;
@@ -104,34 +171,76 @@ export function SelectField({
   options: string[];
   required?: boolean;
   error?: string | undefined;
+  placeholder?: string;
 }) {
   const id = useId();
   return (
-    <div>
-      <label htmlFor={id} className="mb-2 block text-sm font-semibold">
-        {label}
-        {required ? <span className="ml-1 text-destructive">*</span> : null}
-      </label>
-      <select
+    <Field id={id} label={label} required={required} error={error}>
+      <span className="relative block">
+        <select
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-required={required || undefined}
+          aria-invalid={Boolean(error)}
+          aria-describedby={describedBy(id, error)}
+          className={cn(
+            controlClass,
+            "h-11 cursor-pointer appearance-none pr-10",
+            !value && "text-muted-foreground",
+          )}
+        >
+          <option value="">{placeholder}</option>
+          {options.map((option) => (
+            <option key={option} value={option} className="text-foreground">
+              {option}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        />
+      </span>
+    </Field>
+  );
+}
+
+/**
+ * Native date picker. The item keeps its "12 March 2026" string format; a stored value the
+ * picker can't read is kept unchanged and shown as a hint until the user picks a new date.
+ */
+export function DateField({
+  label,
+  value,
+  onChange,
+  hint,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+  error?: string | undefined;
+}) {
+  const id = useId();
+  const unreadable = value.trim() !== "" && !parseItemDate(value);
+  const shownHint = unreadable ? `Current value: “${value}”. Pick a date to replace it.` : hint;
+  return (
+    <Field id={id} label={label} hint={shownHint} error={error}>
+      <Input
         id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        type="date"
+        value={toInputDate(value)}
+        onChange={(event) => {
+          const picked = parseItemDate(event.target.value);
+          onChange(picked ? formatItemDate(picked) : "");
+        }}
         aria-invalid={Boolean(error)}
-        className={cn(
-          "h-13 w-full rounded-[13px] border border-input bg-card px-4 text-sm outline-none focus:ring-2 focus:ring-ring",
-          !value && "text-muted-foreground",
-          error && "border-destructive",
-        )}
-      >
-        <option value="">Select category</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      {error ? <p className="mt-1.5 text-xs font-semibold text-destructive">{error}</p> : null}
-    </div>
+        aria-describedby={describedBy(id, error, shownHint)}
+        className="block appearance-none"
+      />
+    </Field>
   );
 }
 
@@ -140,69 +249,126 @@ export function TextAreaField({
   value,
   onChange,
   placeholder,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  hint?: string;
 }) {
   const id = useId();
   return (
-    <div>
-      <label htmlFor={id} className="mb-2 block text-sm font-semibold">
-        {label}
-      </label>
+    <Field id={id} label={label} hint={hint}>
       <textarea
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-28 w-full rounded-[13px] border border-input bg-card p-4 text-sm outline-none focus:ring-2 focus:ring-ring"
+        aria-describedby={describedBy(id, undefined, hint)}
+        className={cn(controlClass, "min-h-28 py-2.5 placeholder:text-muted-foreground")}
         placeholder={placeholder}
       />
-    </div>
+    </Field>
   );
 }
 
-export function PageHeader({ title, action }: { title: string; action?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  action?: ReactNode;
+}) {
   return (
-    <header className="flex items-center justify-between px-5 pb-4 pt-6">
-      <h2 className="text-2xl font-extrabold">{title}</h2>
-      {action}
+    <header className="flex items-start justify-between gap-4 px-gutter pb-5 pt-6">
+      <div className="min-w-0">
+        <h2 className="type-title">{title}</h2>
+        {subtitle ? <p className="mt-1 type-caption text-muted-foreground">{subtitle}</p> : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </header>
   );
 }
 
-export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
+export function SectionTitle({
+  children,
+  action,
+  description,
+}: {
+  children: ReactNode;
+  action?: ReactNode;
+  description?: ReactNode;
+}) {
   return (
-    <div className="mb-3 flex items-center justify-between">
-      <h3 className="text-base font-bold">{children}</h3>
+    <div className="mb-3 flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="type-heading">{children}</h3>
+        {description ? (
+          <p className="mt-0.5 type-caption text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+export function TopBack({
+  title,
+  subtitle,
+  onBack,
+  action,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  onBack: () => void;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border px-3 py-3">
+      <Button variant="ghost" size="icon" onClick={onBack} aria-label="Go back">
+        <ArrowLeft />
+      </Button>
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate type-heading">{title}</h2>
+        {subtitle ? (
+          <p className="truncate type-caption text-muted-foreground">{subtitle}</p>
+        ) : null}
+      </div>
       {action}
     </div>
   );
 }
 
-export function TopBack({ title, onBack, action }: { title: string; onBack: () => void; action?: ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 px-5 py-5">
-      <Button variant="ghost" size="icon" onClick={onBack} aria-label="Go back">
-        <ArrowLeft />
-      </Button>
-      <h2 className="flex-1 text-xl font-extrabold">{title}</h2>
-      {action}
-    </div>
-  );
+/** White surface with a hairline border — the base container for grouped content. */
+export function Card({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("rounded-xl border border-border bg-card", className)}>{children}</div>;
 }
 
 export function InfoRows({ rows }: { rows: [string, string][] }) {
   return (
-    <div>
+    <dl>
       {rows.map(([key, value], index) => (
-        <div key={key} className={cn("flex justify-between gap-4 py-3 text-sm", index && "border-t border-border")}>
-          <span className="text-muted-foreground">{key}</span>
-          <span className="text-right font-semibold">{value || "—"}</span>
+        <div
+          key={key}
+          className={cn(
+            "grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4 py-3",
+            index && "border-t border-border",
+          )}
+        >
+          <dt className="type-caption text-muted-foreground">{key}</dt>
+          <dd
+            className={cn(
+              "text-right text-sm break-words",
+              value ? "font-medium" : "text-muted-foreground",
+            )}
+          >
+            {value || "Not added"}
+          </dd>
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -210,9 +376,9 @@ export function InfoSection({ title, rows }: { title: string; rows: [string, str
   return (
     <section>
       <SectionTitle>{title}</SectionTitle>
-      <div className="rounded-2xl border border-border px-4">
+      <Card className="px-4">
         <InfoRows rows={rows} />
-      </div>
+      </Card>
     </section>
   );
 }
@@ -231,102 +397,237 @@ export function EmptyState({
   tone?: "teal" | "muted";
 }) {
   return (
-    <div className="px-5 py-12 text-center">
+    <div className="px-gutter py-10 text-center">
       <div
         className={cn(
-          "mx-auto grid h-20 w-20 place-items-center rounded-full [&>svg]:h-9 [&>svg]:w-9",
-          tone === "teal" ? "bg-secondary text-primary" : "bg-surface-subtle text-muted-foreground",
+          "mx-auto grid h-14 w-14 place-items-center rounded-full [&>svg]:h-6 [&>svg]:w-6",
+          tone === "teal" ? "bg-secondary text-primary" : "bg-muted text-muted-foreground",
         )}
       >
         {icon}
       </div>
-      <h2 className="mt-5 text-xl font-extrabold">{title}</h2>
-      <p className="mx-auto mt-2 max-w-[18rem] text-sm leading-6 text-muted-foreground">{text}</p>
-      {action ? <div className="mt-5">{action}</div> : null}
+      <h2 className="mt-4 type-heading">{title}</h2>
+      <p className="mx-auto mt-1.5 max-w-[20rem] type-caption text-muted-foreground">{text}</p>
+      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
     </div>
   );
 }
 
-export function QrPlaceholder({ seed = 7 }: { seed?: number }) {
+/**
+ * Stand-in for the item's QR code. QR generation isn't connected yet, so this deliberately
+ * does not look like a scannable code.
+ */
+export function QrPlaceholder({ size = "md" }: { size?: "sm" | "md" }) {
   return (
     <div
       role="img"
-      aria-label="Sample QR code placeholder"
-      className="mx-auto grid aspect-square w-44 grid-cols-7 gap-1 rounded-xl border-8 border-card bg-card p-2 shadow-soft"
+      aria-label="QR code not generated yet"
+      className={cn(
+        "mx-auto grid aspect-square place-items-center rounded-xl border-2 border-dashed border-input bg-surface-subtle p-4 text-center",
+        size === "sm" ? "w-32" : "w-44",
+      )}
     >
-      {Array.from({ length: 49 }).map((_, i) => (
-        <span
-          key={i}
-          className={cn(
-            "rounded-[1px]",
-            (i * seed + i * i + 3) % 5 < 2 || [0, 1, 7, 8, 5, 6, 12, 13, 35, 36, 42, 43].includes(i)
-              ? "bg-foreground"
-              : "bg-card",
-          )}
+      <div>
+        <QrCode
+          aria-hidden="true"
+          className={cn("mx-auto text-muted-foreground", size === "sm" ? "h-8 w-8" : "h-10 w-10")}
         />
-      ))}
+        <p className="mt-2 text-xs font-medium text-muted-foreground">QR not generated yet</p>
+      </div>
     </div>
   );
 }
 
-export function ActionMini({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+export function ActionMini({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <Button variant="ghost" onClick={onClick} className="h-auto flex-col gap-1.5 px-1 py-2 text-[10px] text-muted-foreground">
+    <Button
+      variant="outline"
+      onClick={onClick}
+      disabled={disabled}
+      className="h-auto flex-col gap-1.5 px-2 py-3 text-xs font-medium"
+    >
       <span className="text-primary">{icon}</span>
       {label}
     </Button>
   );
 }
 
-export function StepHeading({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+export function StepHeading({
+  icon,
+  title,
+  text,
+}: {
+  icon: ReactNode;
+  title: string;
+  text: string;
+}) {
   return (
-    <div className="mb-7">
-      <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-secondary text-primary [&>svg]:h-5 [&>svg]:w-5">
+    <div className="mb-6 flex items-start gap-3">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary [&>svg]:h-5 [&>svg]:w-5">
         {icon}
       </div>
-      <h3 className="text-2xl font-extrabold">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
+      <div>
+        <h3 className="type-heading">{title}</h3>
+        <p className="mt-0.5 type-caption text-muted-foreground">{text}</p>
+      </div>
     </div>
   );
 }
 
-export function ListRowButton({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+/** Numbered, labelled progress for multi-step forms. */
+export function StepIndicator({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <Button variant="ghost" onClick={onClick} className="h-14 w-full justify-start rounded-none px-4">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-info-soft text-primary [&>svg]:h-4 [&>svg]:w-4">
+    <ol className="flex items-start gap-2" aria-label="Form progress">
+      {steps.map((label, index) => {
+        const number = index + 1;
+        const done = number < current;
+        const active = number === current;
+        return (
+          <li
+            key={label}
+            className="flex min-w-0 flex-1 flex-col gap-2"
+            aria-current={active ? "step" : undefined}
+          >
+            <span className={cn("h-1 rounded-full", done || active ? "bg-primary" : "bg-border")} />
+            <span className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
+                  done && "bg-primary text-primary-foreground",
+                  active && "border-2 border-primary text-primary",
+                  !done && !active && "border border-input text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" /> : number}
+              </span>
+              <span
+                className={cn(
+                  "truncate text-xs",
+                  active ? "font-semibold text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {label}
+              </span>
+              {done ? <span className="sr-only">(completed)</span> : null}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function ListRowButton({
+  icon,
+  label,
+  description,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  description?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-14 w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+    >
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary [&>svg]:h-4 [&>svg]:w-4">
         {icon}
       </span>
-      <span className="flex-1 text-left">{label}</span>
-      <ChevronRight className="text-muted-foreground" />
-    </Button>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{label}</span>
+        {description ? (
+          <span className="block type-caption text-muted-foreground">{description}</span>
+        ) : null}
+      </span>
+      <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </button>
   );
 }
 
 export function CheckRow({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 py-2 text-sm font-semibold">
-      <span className="grid h-5 w-5 place-items-center rounded-full bg-primary text-primary-foreground">
-        <Check className="h-3 w-3" />
+    <li className="flex items-center gap-2.5 py-1.5 text-sm">
+      <span className="grid h-5 w-5 place-items-center rounded-full bg-secondary text-primary">
+        <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
       </span>
       {label}
+    </li>
+  );
+}
+
+const NOTICE_TONES = {
+  info: "border-primary/15 bg-info-soft text-secondary-foreground",
+  neutral: "border-border bg-surface-subtle text-muted-foreground",
+  warning: "border-warning/40 bg-warning-soft text-warning-foreground",
+  danger: "border-destructive/25 bg-destructive-soft text-destructive",
+};
+
+/** Inline callout for privacy notes, prototype limitations and status warnings. */
+export function Notice({
+  icon,
+  title,
+  children,
+  tone = "info",
+  action,
+}: {
+  icon?: ReactNode;
+  title?: string;
+  children?: ReactNode;
+  tone?: keyof typeof NOTICE_TONES;
+  action?: ReactNode;
+}) {
+  return (
+    <div className={cn("flex gap-3 rounded-lg border p-3.5", NOTICE_TONES[tone])}>
+      {icon ? <span className="mt-0.5 shrink-0 [&>svg]:h-4 [&>svg]:w-4">{icon}</span> : null}
+      <div className="min-w-0 flex-1">
+        {title ? <p className="text-sm font-semibold">{title}</p> : null}
+        {children ? (
+          <div
+            className={cn(
+              "type-caption",
+              title && "mt-0.5",
+              tone !== "neutral" && "text-foreground/80",
+            )}
+          >
+            {children}
+          </div>
+        ) : null}
+        {action ? <div className="mt-3">{action}</div> : null}
+      </div>
     </div>
   );
 }
 
-export function ListSkeleton({ rows = 3 }: { rows?: number }) {
+export function Avatar({ name, size = "md" }: { name: string; size?: "md" | "lg" }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
   return (
-    <div className="space-y-3" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your belongings</span>
-      {Array.from({ length: rows }).map((_, index) => (
-        <div key={index} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
-          <div className="h-16 w-16 shrink-0 animate-pulse rounded-xl bg-muted" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3.5 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-            <div className="h-5 w-24 animate-pulse rounded-full bg-muted" />
-          </div>
-        </div>
-      ))}
-    </div>
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full bg-secondary font-semibold text-secondary-foreground",
+        size === "lg" ? "h-14 w-14 text-lg" : "h-10 w-10 text-sm",
+      )}
+    >
+      {initials || "?"}
+    </span>
   );
 }

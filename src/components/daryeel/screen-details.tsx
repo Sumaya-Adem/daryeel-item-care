@@ -1,5 +1,19 @@
 import { useState } from "react";
-import { Bell, Download, LockKeyhole, MapPin, Pencil, Printer, Share2, ShieldCheck, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  Eye,
+  LockKeyhole,
+  MapPin,
+  Pencil,
+  Printer,
+  QrCode,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,183 +25,351 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { describeDaysLeft, getWarrantyInfo } from "@/lib/daryeel-dates";
 import { useDaryeel } from "@/lib/daryeel-store";
 import type { Item } from "@/lib/daryeel-types";
-import { ActionMini, InfoRows, InfoSection, QrPlaceholder, SectionTitle, StatusBadge, TopBack } from "./ui-kit";
+import { cn } from "@/lib/utils";
+import {
+  ActionMini,
+  Badge,
+  Card,
+  InfoRows,
+  InfoSection,
+  Notice,
+  QrPlaceholder,
+  SectionTitle,
+  StatusBadge,
+  TopBack,
+} from "./ui-kit";
 import { itemIcon } from "./item-card";
-import { downloadQr, printQr, shareQr } from "./qr-actions";
+import { QR_PENDING_MESSAGE, shareQr } from "./qr-actions";
 import { VISIBILITY_LABELS } from "./screen-qr";
 
 const REMINDERS = ["30 days before", "14 days before", "7 days before"];
+
+function WarrantySection({ item, onReminder }: { item: Item; onReminder: () => void }) {
+  const info = getWarrantyInfo(item.purchaseDate, item.warrantyExpiry);
+  const badge =
+    info.state === "soon" ? (
+      <Badge tone="gold">Ending soon</Badge>
+    ) : info.state === "expired" ? (
+      <Badge tone="muted">Expired</Badge>
+    ) : info.state === "active" ? (
+      <Badge tone="green">Valid</Badge>
+    ) : null;
+
+  return (
+    <section>
+      <SectionTitle>Warranty</SectionTitle>
+      <Card className="p-4">
+        {info.state === "none" ? (
+          <p className="type-caption text-muted-foreground">
+            No warranty added. Add an expiry date when editing this item to track it here.
+          </p>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="type-caption text-muted-foreground">Expires</p>
+                <p className="mt-0.5 font-semibold">{item.warrantyExpiry}</p>
+              </div>
+              {badge}
+            </div>
+            {info.progress !== null && info.daysLeft !== null ? (
+              <div className="mt-4">
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-label="Warranty period used"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(info.progress * 100)}
+                >
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      info.state === "soon"
+                        ? "bg-warning"
+                        : info.state === "expired"
+                          ? "bg-muted-foreground"
+                          : "bg-primary",
+                    )}
+                    style={{ width: `${Math.max(2, info.progress * 100)}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                  <span>Purchased {item.purchaseDate}</span>
+                  <span className="font-medium text-foreground">
+                    {describeDaysLeft(info.daysLeft)}
+                  </span>
+                </div>
+              </div>
+            ) : info.daysLeft !== null ? (
+              <p className="mt-2 type-caption text-muted-foreground">
+                {describeDaysLeft(info.daysLeft)}
+              </p>
+            ) : null}
+          </>
+        )}
+        <Button variant="outline" className="mt-4 w-full" onClick={onReminder}>
+          <Bell /> Set reminder
+        </Button>
+      </Card>
+    </section>
+  );
+}
 
 export function ItemDetails({ item }: { item: Item }) {
   const { go, setStatus, deleteItem, pushNotification } = useDaryeel();
   const [dialog, setDialog] = useState<"none" | "reminder" | "lost" | "found" | "delete">("none");
   const [reminder, setReminder] = useState(REMINDERS[0]!);
   const close = () => setDialog("none");
+  const lost = item.status === "lost";
 
-  const shared = VISIBILITY_LABELS.filter(([key]) => item.visibility[key]).map(([, label]) => label);
+  const shared = VISIBILITY_LABELS.filter(([key]) => item.visibility[key]).map(
+    ([, label]) => label,
+  );
 
   return (
-    <div className="min-h-screen pb-10 lg:min-h-[820px]">
+    <div className="min-h-screen bg-background pb-10 lg:min-h-[820px]">
       <TopBack
-        title="Item Details"
+        title="Item details"
         onBack={() => go("items")}
         action={
-          <Button variant="ghost" size="icon" aria-label="Edit item" onClick={() => go("edit", { itemId: item.id })}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Edit item"
+            onClick={() => go("edit", { itemId: item.id })}
+          >
             <Pencil />
           </Button>
         }
       />
 
-      {item.photo ? (
-        <img src={item.photo} alt={item.name} className="aspect-[16/10] w-full object-cover object-left-top" />
-      ) : (
-        <div className="grid aspect-[16/10] w-full place-items-center bg-surface-subtle text-primary [&>svg]:h-16 [&>svg]:w-16">
-          {itemIcon(item)}
-        </div>
-      )}
+      <div className="px-gutter pt-5">
+        {item.photo ? (
+          <img
+            src={item.photo}
+            alt={item.name}
+            className="aspect-[16/10] w-full rounded-xl border border-border object-cover object-left-top"
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="grid aspect-[16/10] w-full place-items-center rounded-xl border border-border bg-surface-subtle text-muted-foreground [&>svg]:h-12 [&>svg]:w-12"
+          >
+            {itemIcon(item)}
+          </div>
+        )}
 
-      <div className="px-5">
-        <div className="py-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-extrabold">{item.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {item.category} · {item.id}
-              </p>
-            </div>
+        <div className="flex items-start justify-between gap-3 pt-5">
+          <div className="min-w-0">
+            <h2 className="type-title break-words">{item.name}</h2>
+            <p className="mt-1 type-caption text-muted-foreground">
+              {item.category} · <span className="font-mono text-xs">{item.id}</span>
+            </p>
+          </div>
+          <div className="pt-1.5">
             <StatusBadge status={item.status} />
           </div>
         </div>
 
-        <InfoSection
-          title="Item Information"
-          rows={[
-            ["Brand", item.brand],
-            ["Model", item.model],
-            ["Serial Number", item.serial],
-            ["Purchase Date", item.purchaseDate],
-          ]}
-        />
-
-        <section className="mt-6">
-          <SectionTitle>Warranty</SectionTitle>
-          <div className="rounded-2xl border border-border p-4">
-            {item.warrantyExpiry ? (
-              <>
-                <p className="text-xs text-muted-foreground">Warranty expires</p>
-                <p className="mt-1 font-bold">{item.warrantyExpiry}</p>
-                <div className="mt-4 h-2 rounded-full bg-muted">
-                  <div className="h-full w-2/3 rounded-full bg-warning" />
-                </div>
-                <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
-                  <span>8 months used</span>
-                  <span>4 months left</span>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No warranty added for this item yet.</p>
-            )}
-            <Button variant="outline" className="mt-4 w-full" onClick={() => setDialog("reminder")}>
-              <Bell /> Set Reminder
-            </Button>
+        {lost ? (
+          <div className="mt-4">
+            <Notice
+              tone="danger"
+              icon={<AlertTriangle />}
+              title="This item is marked as lost"
+              action={
+                <Button size="sm" variant="outline" onClick={() => setDialog("found")}>
+                  <CheckCircle2 /> Mark as found
+                </Button>
+              }
+            >
+              Its public page shows a lost notice so whoever scans the QR can contact you.
+            </Notice>
           </div>
-        </section>
+        ) : null}
 
-        <section className="mt-6">
-          <SectionTitle>QR Identity</SectionTitle>
-          <div className="rounded-2xl border border-border p-5 text-center">
-            <QrPlaceholder />
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <ActionMini icon={<Download />} label="Download" onClick={downloadQr} />
-              <ActionMini icon={<Printer />} label="Print" onClick={printQr} />
-              <ActionMini icon={<Share2 />} label="Share" onClick={() => void shareQr(item)} />
-            </div>
-            <Button className="mt-2 w-full" variant="secondary" onClick={() => go("qr", { itemId: item.id })}>
-              Open QR Identity
-            </Button>
-            <Button className="mt-2 w-full" variant="outline" onClick={() => go("public", { itemId: item.id })}>
-              View Public Page
-            </Button>
-          </div>
-        </section>
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <ActionMini
+            icon={<Pencil />}
+            label="Edit"
+            onClick={() => go("edit", { itemId: item.id })}
+          />
+          <ActionMini
+            icon={<QrCode />}
+            label="QR identity"
+            onClick={() => go("qr", { itemId: item.id })}
+          />
+          <ActionMini
+            icon={<ExternalLink />}
+            label="Public page"
+            onClick={() => go("public", { itemId: item.id })}
+          />
+        </div>
 
-        <section className="mt-6">
-          <SectionTitle
-            action={
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => go("edit", { itemId: item.id })}>
-                Change
-              </Button>
-            }
-          >
-            Public Information
-          </SectionTitle>
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-border p-4 text-xs">
-            {shared.length > 0 ? (
-              shared.map((label) => (
-                <span key={label} className="rounded-full bg-secondary px-3 py-1 font-semibold text-primary">
-                  {label}
-                </span>
-              ))
-            ) : (
-              <p className="text-muted-foreground">No public information selected yet.</p>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-2xl border border-border bg-surface-subtle p-4">
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <LockKeyhole className="h-4 w-4 text-primary" />
-            Private — Only you can see this
-          </div>
-          <InfoRows
+        <div className="mt-section space-y-section">
+          <InfoSection
+            title="Item information"
             rows={[
-              ["Purchase Price", item.price],
-              ["Seller", item.seller],
-              ["Private Notes", item.notes],
+              ["Brand", item.brand],
+              ["Model", item.model],
+              ["Serial number", item.serial],
+              ["Purchase date", item.purchaseDate],
             ]}
           />
-        </section>
 
-        <div className="mt-6 space-y-3">
-          {item.status === "active" ? (
-            <Button variant="outline" className="w-full text-warning" onClick={() => setDialog("lost")}>
-              <MapPin /> Mark as Lost
-            </Button>
-          ) : (
-            <Button variant="outline" className="w-full text-success" onClick={() => setDialog("found")}>
-              <ShieldCheck /> Mark as Found
-            </Button>
-          )}
-          <Button variant="outline" className="w-full" onClick={() => go("edit", { itemId: item.id })}>
-            <Pencil /> Edit Item
-          </Button>
-          <Button variant="ghost" className="w-full text-destructive" onClick={() => setDialog("delete")}>
-            <Trash2 /> Delete Item
-          </Button>
+          <WarrantySection item={item} onReminder={() => setDialog("reminder")} />
+
+          <section>
+            <SectionTitle description="What people see, and what stays with you">
+              Privacy
+            </SectionTitle>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <Card className="p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <Eye className="h-4 w-4 text-primary" aria-hidden="true" /> Shown publicly
+                  </p>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-[13px]"
+                    onClick={() => go("edit", { itemId: item.id })}
+                  >
+                    Change
+                  </Button>
+                </div>
+                {shared.length > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-1.5">
+                    {shared.map((label) => (
+                      <li key={label}>
+                        <Badge>{label}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 type-caption text-muted-foreground">
+                    Nothing is shared on the public page.
+                  </p>
+                )}
+              </Card>
+              <Card className="bg-surface-subtle px-4 pt-4 pb-1">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <LockKeyhole className="h-4 w-4 text-muted-foreground" aria-hidden="true" />{" "}
+                  Private — only you
+                </p>
+                <InfoRows
+                  rows={[
+                    ["Purchase price", item.price],
+                    ["Seller", item.seller],
+                    ["Private notes", item.notes],
+                  ]}
+                />
+              </Card>
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle>QR identity</SectionTitle>
+            <Card className="p-5 text-center">
+              <QrPlaceholder size="sm" />
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <ActionMini
+                  icon={<Download />}
+                  label="Download"
+                  onClick={() => undefined}
+                  disabled
+                />
+                <ActionMini icon={<Printer />} label="Print" onClick={() => undefined} disabled />
+                <ActionMini icon={<Share2 />} label="Share" onClick={() => void shareQr(item)} />
+              </div>
+              <p className="mt-3 type-caption text-muted-foreground">{QR_PENDING_MESSAGE}</p>
+            </Card>
+          </section>
+
+          <section>
+            <SectionTitle>Manage item</SectionTitle>
+            <Card className="divide-y divide-border">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4">
+                <div className="min-w-[11rem] flex-1">
+                  <p className="text-sm font-medium">{lost ? "Item found?" : "Lost this item?"}</p>
+                  <p className="type-caption text-muted-foreground">
+                    {lost
+                      ? "Remove the lost notice from the public page."
+                      : "Show a lost notice on the public page."}
+                  </p>
+                </div>
+                {lost ? (
+                  <Button variant="outline" className="shrink-0" onClick={() => setDialog("found")}>
+                    <CheckCircle2 className="text-success" /> Mark as found
+                  </Button>
+                ) : (
+                  <Button variant="outline" className="shrink-0" onClick={() => setDialog("lost")}>
+                    <MapPin className="text-destructive" /> Mark as lost
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4">
+                <div className="min-w-[11rem] flex-1">
+                  <p className="text-sm font-medium">Delete item</p>
+                  <p className="type-caption text-muted-foreground">
+                    Permanently remove it and its QR identity.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive-outline"
+                  className="shrink-0"
+                  onClick={() => setDialog("delete")}
+                >
+                  <Trash2 /> Delete
+                </Button>
+              </div>
+            </Card>
+          </section>
         </div>
       </div>
 
-      <Dialog open={dialog === "reminder"} onOpenChange={(open) => (open ? setDialog("reminder") : close())}>
+      <Dialog
+        open={dialog === "reminder"}
+        onOpenChange={(open) => (open ? setDialog("reminder") : close())}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Warranty reminder</DialogTitle>
-            <DialogDescription>Choose when Daryeel should remind you before the warranty ends.</DialogDescription>
+            <DialogDescription>
+              Choose when you'd like to be reminded before the warranty ends.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-2" role="group" aria-label="Reminder timing">
             {REMINDERS.map((option) => (
               <Button
                 key={option}
-                variant={reminder === option ? "default" : "outline"}
+                variant="outline"
                 className="w-full justify-start"
                 aria-pressed={reminder === option}
                 onClick={() => setReminder(option)}
               >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "grid h-4 w-4 place-items-center rounded-full border",
+                    reminder === option ? "border-primary" : "border-input",
+                  )}
+                >
+                  {reminder === option ? (
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                  ) : null}
+                </span>
                 {option}
               </Button>
             ))}
           </div>
+          <p className="type-caption text-muted-foreground">
+            Reminders are added to your notifications in this preview. Push and email alerts aren't
+            connected yet.
+          </p>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost">Cancel</Button>
@@ -195,7 +377,7 @@ export function ItemDetails({ item }: { item: Item }) {
             <Button
               onClick={() => {
                 close();
-                toast.success("Reminder saved.");
+                toast.success("Reminder preference saved.");
                 pushNotification({
                   title: "Warranty reminder set",
                   text: `You'll be reminded ${reminder.toLowerCase()} ${item.name}'s warranty ends.`,
@@ -204,18 +386,22 @@ export function ItemDetails({ item }: { item: Item }) {
                 });
               }}
             >
-              Save Reminder
+              Save reminder
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialog === "lost"} onOpenChange={(open) => (open ? setDialog("lost") : close())}>
+      <Dialog
+        open={dialog === "lost"}
+        onOpenChange={(open) => (open ? setDialog("lost") : close())}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark this item as lost?</DialogTitle>
             <DialogDescription>
               The public page will show a lost notice so anyone who scans the QR can contact you.
+              You can undo this at any time.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -229,17 +415,22 @@ export function ItemDetails({ item }: { item: Item }) {
                 toast.success("Item marked as lost.");
               }}
             >
-              Mark as Lost
+              Mark as lost
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialog === "found"} onOpenChange={(open) => (open ? setDialog("found") : close())}>
+      <Dialog
+        open={dialog === "found"}
+        onOpenChange={(open) => (open ? setDialog("found") : close())}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark this item as found?</DialogTitle>
-            <DialogDescription>The lost notice will be removed from the public page.</DialogDescription>
+            <DialogDescription>
+              The lost notice will be removed from the public page.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
@@ -252,24 +443,29 @@ export function ItemDetails({ item }: { item: Item }) {
                 toast.success("Item marked as found.");
               }}
             >
-              Mark as Found
+              Mark as found
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialog === "delete"} onOpenChange={(open) => (open ? setDialog("delete") : close())}>
+      <Dialog
+        open={dialog === "delete"}
+        onOpenChange={(open) => (open ? setDialog("delete") : close())}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this item?</DialogTitle>
-            <DialogDescription>This action cannot be undone.</DialogDescription>
+            <DialogTitle>Delete “{item.name}”?</DialogTitle>
+            <DialogDescription>
+              This removes the item, its details and its QR identity. This action cannot be undone.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost">Cancel</Button>
             </DialogClose>
             <Button
-              className="bg-destructive text-primary-foreground hover:bg-destructive/90"
+              variant="destructive"
               onClick={() => {
                 deleteItem(item.id);
                 close();
@@ -277,7 +473,7 @@ export function ItemDetails({ item }: { item: Item }) {
                 go("items");
               }}
             >
-              Delete Item
+              <Trash2 /> Delete item
             </Button>
           </DialogFooter>
         </DialogContent>
